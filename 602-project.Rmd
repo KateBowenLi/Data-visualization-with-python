@@ -1,0 +1,286 @@
+The relationship between age group(15-24, 24-54,55 and over) with the unemployment rate.
+The relationship between sex group(Females,males) with the unemployment rate. 
+
+
+
+```{r}
+#rdata = read.csv('emp_basic_data.csv')
+library(readr)
+rdata <- read_csv("emp_basic_data.csv")
+#View(rdata)
+```
+```{r}
+tail(rdata,4)
+```
+First, display the bar chart for Sex group females
+```{r}
+rdata$REF_DATE <- as.character(rdata$REF_DATE)
+
+data.2000to2020 = filter(rdata,REF_DATE >= '2000-01', REF_DATE<='2020-08')
+colnames(data.2000to2020)[4] = "Labour.force.characteristics"
+colnames(data.2000to2020)[6] = "Age.group"
+data.2000to2020 
+```
+Filter out the value for labour force characteristics as we only need unemployment rate and females.
+
+plot only Canada female unemployment rate to see the normalbility, from the table below, the nsize for this certain condistion is 248.
+
+```{r}
+data.2000to2020.CA = select(filter(data.2000to2020,GEO=='Canada'),REF_DATE,GEO,Labour.force.characteristics,Sex,Age.group,VALUE)
+data.2000to2020.CA = select(filter(data.2000to2020.CA,Age.group=='15 years and over'),REF_DATE,GEO,Sex,Labour.force.characteristics,VALUE,Age.group)
+data.2000to2020.CA = select(filter(data.2000to2020.CA,Sex=='Females'|Sex=='Males'),REF_DATE,GEO,Sex,Labour.force.characteristics,VALUE,Age.group)
+data.2000to2020.CA = select(filter(data.2000to2020.CA,Labour.force.characteristics=='Unemployment rate'),REF_DATE,GEO,Sex,Labour.force.characteristics,VALUE,Age.group)
+data.2000to2020.CA
+```
+For all provinces and Canada:
+```{r}
+data.2000to2020.all = select(filter(data.2000to2020,Age.group=='15 years and over'),REF_DATE,GEO,Sex,Labour.force.characteristics,VALUE,Age.group)
+data.2000to2020.all
+```
+```{r}
+ggplot(data=filter(data.2000to2020.CA,Sex=='Females'),aes(x=VALUE))+ geom_histogram(col="red", fill="blue", binwidth=0.5)+xlab('Unemployment rate(%)')+ylab('Count Frequency for unemployment rate')+ggtitle('Histogram of Unemployment rate for Female')
+```
+The graph is right-skewed. 
+```{r}
+ggplot(data=filter(data.2000to2020.CA,Sex=='Males'),aes(x=VALUE))+ geom_histogram(col="red", fill="blue", binwidth=0.5)+xlab('Unemployment rate(%)')+ylab('Count Frequency for unemployment rate')+ggtitle('Histogram of Unemployment rate for Males')
+```
+The graph is right-skewed. 
+
+For more clear stas analysis, the boxplot and violin plot is below:
+
+```{r}
+ggplot(data.2000to2020.CA,aes(x=Sex,y=VALUE))+ geom_violin(col="blue", fill="red", na.rm=TRUE) +xlab('Sex')+ geom_boxplot(binwidth=0.5,ns.rm=TRUE)+ylab('Unemployment rate(%)')+ggtitle('Box plot of Unemployment rate for Female and Male')+ coord_flip()
+```
+```{r}
+data.2000to2020.all= select(filter(data.2000to2020,Sex=='Females'|Sex=='Males' ),REF_DATE,GEO,Sex,Labour.force.characteristics,VALUE,Age.group)
+data.2000to2020.all= select(filter(data.2000to2020.all,Labour.force.characteristics=='Unemployment rate' ),REF_DATE,GEO,Sex,Labour.force.characteristics,VALUE,Age.group)
+tail(data.2000to2020.all,4)
+```
+```{r}
+ggplot(data=filter(data.2000to2020.all,Sex=='Females',GEO!='Canada'),mapping = aes(x=VALUE))+geom_histogram(col='blue', binwidth=1, na.rm=TRUE) + xlab("Unemployment Rate(%)") + facet_wrap(~GEO)+ggtitle('Unemployment rate for Different Canada Provinces(Females)')
+```
+```{r}
+ggplot(data=filter(data.2000to2020.all,Sex=='Males',GEO!='Canada'),mapping = aes(x=VALUE))+geom_histogram(col='blue', binwidth=1, na.rm=TRUE) + xlab("Unemployment Rate(%)") + facet_wrap(~GEO)+ggtitle('Unemployment rate for Different Canada Provinces(Males)')
+```
+Now, for data from Canada, Can we conclude the mean of unemployment for women is larger than the mean of unemployment for man?
+
+First, use the permutation method to get the diffrence between males and females, use N=10000 for the bootstrap
+```{r}
+data.2000to2020.CA
+```
+```{r}
+favstats(~VALUE|Sex,data=data.2000to2020.CA)
+```
+
+$$
+{\rm H}_{0}: \mu_{M} \leq \mu_{F} \hspace{0.25in} {\rm } \hspace{0.25in} {\rm H}_{A}: \mu_{M} > \mu_{F} 
+$$
+The Null Hypothese is the mean of Females is smaller or equal to mean of Males for unemployment rate. 
+The Alternative Hypothese is the mean of Males is larger than mean of Females for unemployment rate.
+```{r}
+fmdiff = mean(~VALUE,data=filter(data.2000to2020.CA,Sex=='Females')) - mean(~VALUE,data=filter(data.2000to2020.CA,Sex=='Males'))
+fmdiff
+n.all = dim(data.2000to2020.CA)[1]
+n.all
+data.2000to2020.CAf = filter(data.2000to2020.CA,Sex=='Females')
+n.female = dim(data.2000to2020.CAf)[1]
+n.female
+n.males = 496-248
+```
+```{r}
+N=2000
+fmoutcome = numeric(N)
+
+for( i in 1:N){
+  index.1 = sample(496,248,replace=FALSE)
+  fmoutcome[i] = mean(data.2000to2020.CA$VALUE[index.1])-mean(data.2000to2020.CA$VALUE[-index.1])
+}
+
+```
+```{r}
+hist(fmoutcome,xlab="Differnce of Unemployment of Females and Males",ylab="Frequency",main="Outcome of 10000 Permulation Tests",col='blue')
+abline(v=fmdiff,col="red")
+```
+```{r}
+(sum(fmoutcome<=(fmdiff)))/N
+```
+The null hyposes will be rejected. So that the mean of unemployment rate for female is less than the mean of unemployment rate for male.
+
+How about Parametric Testing?
+First, cheeck the normality conditon.
+
+```{r}
+ggplot(data=filter(data.2000to2020.CA,Sex=='Females'),aes(sample=VALUE))+ stat_qq(size=2, col='blue') + stat_qqline(col='red') + ggtitle("Normal Probability Check for Females")
+```
+```{r}
+ggplot(data=filter(data.2000to2020.CA,Sex=='Males'),aes(sample=VALUE))+ stat_qq(size=2, col='blue') + stat_qqline(col='red') + ggtitle("Normal Probability Check for Males")
+```
+
+```{r}
+pnorm(0.8)
+```
+
+
+
+
+Data wrangling
+```{r}
+oilprice = read.csv("oilprice.csv")
+oilprice$YYMM <- as.character(oilprice$YYMM)
+oildata.2000to2020 = filter(oilprice,YYMM >= '2000-01'& YYMM<='2020-08')
+names(oildata.2000to2020)[1] = "REF_DATE"
+oildata.2000to2020
+oildataLR = filter(rdata,REF_DATE >= '2000-01'& REF_DATE<='2020-08')
+oildataLR=data.frame(oildataLR)
+dataemp = select(filter(oildataLR,GEO=='Canada',Sex =='Both sexes',Labour.force.characteristics
+=='Unemployment rate',Age.group=='15 years and over'),REF_DATE,VALUE)
+totaldataLR = merge(oildata.2000to2020,dataemp,by="REF_DATE")
+totaldataLR
+ggplot(data=totaldataLR, aes(x = Price, y = VALUE)) + geom_point(col="blue", size=2, position="jitter") + ylab("Unemployment rate (%)") + xlab("Oilprice") + ggtitle("Scatterplot of Unemployment rate (%) to Oil Price")+ stat_smooth(method="lm", col='red')
+
+```
+
+```{r}
+dataempAB = select(filter(oildataLR,GEO=='Alberta',Sex =='Both sexes',Labour.force.characteristics
+=='Unemployment rate',Age.group=='15 years and over'),REF_DATE,VALUE)
+totaldataLRAB = merge(oildata.2000to2020,dataempAB,by="REF_DATE")
+totaldataLRAB
+```
+
+
+```{r}
+```
+
+$$
+\begin{align}
+{\rm H}_{0}:& \text{the Y-variable CANNOT be expressed as a linear function of X-variable} \\
+{\rm H}_{A}:& \text{the Y-variable CAN be expressed as a linear function of X-variable} \\
+\end{align}
+$$
+
+```{r}
+LRAB = data.frame(Price =totaldataLRAB$Price,UnemploymentRate = totaldataLRAB$VALUE, REF_DATE = totaldataLRAB$REF_DATE)
+#LRAB = tally(~Price + UnemploymentRate, LRAB,margin = FALSE)
+LRAB
+```
+
+```{r}
+ggplot(data=LRAB, aes(x = Price, y = UnemploymentRate)) + geom_point(col="blue", size=2, position="jitter") + ylab("Unemployment rate (%)") + xlab("oil price") + ggtitle("Scatterplot of Unemployment rate (%) to oil price")+ stat_smooth(method="lm", col='red')
+cor(~Price,~UnemploymentRate, data = LRAB)
+predunemp = lm(UnemploymentRate~Price, LRAB)
+options(scipen=999)
+predunemp$coef
+```
+```{r}
+predictsUempei = predunemp$fitted.values 
+eisUnemp = predunemp$residuals    
+diagnosticdf = data.frame(predictsUempei, eisUnemp)
+ggplot(diagnosticdf, aes(sample = eisUnemp)) +  stat_qq(col='blue') + stat_qqline(col='red') + ggtitle("Normal Probability Plot of Residuals")
+ggplot(diagnosticdf, aes(x = predictsUempei, y = eisUnemp)) +  geom_point(size=2, col='blue', position="jitter") + xlab("Predicted balance") + ylab("Residuals") + ggtitle("Plot of Fits to Residuals") + geom_hline(yintercept=0, color="red", linetype="dashed")
+summary(aov(predunemp))
+rsquared(predunemp)
+```
+
+```{r}
+Nbootstraps6 = 1000 
+cor.boot6 = numeric(Nbootstraps6)
+a.boot6 = numeric(Nbootstraps6) 
+b.boot6 = numeric(Nbootstraps6) 
+ymean.boot6 = numeric(Nbootstraps6)
+rsquare.boot6=numeric(Nbootstraps6)
+nsize6 =  dim(LRAB)[1]
+xvalue6 = 60000
+for(i in 1:Nbootstraps6) 
+{ index = sample(nsize6, replace =TRUE)
+LRAB.boot = LRAB[index,]
+cor.boot6[i]=cor(~Price,~UnemploymentRate,data =LRAB.boot)
+LRAB.lm = lm(UnemploymentRate~Price, data=LRAB.boot)  
+    a.boot6[i] = coef(LRAB.lm)[1] 
+    b.boot6[i] = coef(LRAB.lm)[2] 
+    ymean.boot6[i] = a.boot6[i] + (b.boot6[i]*xvalue6)
+    rsquare.boot6[i]=rsquared(LRAB.lm)
+} 
+
+bootstraplrab = data.frame(cor.boot6,a.boot6,b.boot6,rsquare.boot6) 
+head(bootstraplrab,3)
+favstats(~a.boot6, data=bootstraplrab)
+favstats(~b.boot6, data=bootstraplrab)
+favstats(~rsquare.boot6, data=bootstraplrab)
+
+ggplot(bootstraplrab, aes(x = cor.boot6)) + geom_histogram(col="red", fill="blue", binwidth=0.05) + xlab("Values of the Bootstrap Statistic: Correlation Coefficient") + ylab("Count") + ggtitle("Distribution of Bootstrap Statistics: r")
+qdata(~cor.boot6,c(0.025,0.975),data = bootstraplrab)
+```
+
+
+what about Gender ratio?
+
+```{r}
+
+#ggplot(data.2000to2020.CA, aes(x = Sex, y = VALUE)) + geom_point(col="blue", size=2, position="jitter") + ylab("Unemployment rate") + xlab("Sex") + ggtitle("Scatterplot of balance to income")+ stat_smooth(method="lm", col='red')
+
+femaledataca =select(filter(oildataLR,GEO=='Canada',Sex =='Females',Labour.force.characteristics
+=='Population',Age.group=='15 years and over'),REF_DATE,VALUE)
+names(femaledataca)[2] = "female.population"
+maledataca =select(filter(oildataLR,GEO=='Canada',Sex =='Males',Labour.force.characteristics
+=='Population',Age.group=='15 years and over'),REF_DATE,VALUE)
+names(maledataca)[2] = "male.population"
+Ratioca = femaledataca$female.population/maledataca$male.population
+femaledataca$Ratio=Ratio
+Ratiodataca = merge(femaledataca,totaldataLR,by="REF_DATE")
+Ratiodataca
+ggplot(Ratiodataca, aes(x = Ratio, y = VALUE)) + geom_point(col="blue", size=2, position="jitter") + ylab("Unemployment rate (%)") + xlab("Gender Raio(F/M)") + ggtitle("Scatterplot of Unemployment rate (%) to Gender Raio(F/M)")+ stat_smooth(method="lm", col='red')
+```
+
+Alberta Ratio to unemployment rate
+```{r}
+#ggplot(data.2000to2020.CA, aes(x = Sex, y = VALUE)) + geom_point(col="blue", size=2, position="jitter") + ylab("Unemployment rate") + xlab("Sex") + ggtitle("Scatterplot of balance to income")+ stat_smooth(method="lm", col='red')
+
+femaledata =select(filter(oildataLR,GEO=='Alberta',Sex =='Females',Labour.force.characteristics
+=='Population',Age.group=='15 years and over'),REF_DATE,VALUE)
+names(femaledata)[2] = "female.population"
+maledata =select(filter(oildataLR,GEO=='Alberta',Sex =='Males',Labour.force.characteristics
+=='Population',Age.group=='15 years and over'),REF_DATE,VALUE)
+names(maledata)[2] = "male.population"
+Ratio = femaledata$female.population/maledata$male.population
+femaledata$Ratio=Ratio
+Ratiodata = merge(femaledata,LRAB,by="REF_DATE")
+Ratiodata
+ggplot(Ratiodata, aes(x = Ratio, y = UnemploymentRate)) + geom_point(col="blue", size=2, position="jitter") + ylab("Unemployment rate (%)") + xlab("Gender Raio(F/M)") + ggtitle("Scatterplot of Unemployment rate (%) to Gender Raio(F/M)")+ stat_smooth(method="lm", col='red')
+```
+
+What about age?
+```{r}
+age15dataca =select(filter(oildataLR,GEO=='Canada',Sex =='Both sexes',Labour.force.characteristics
+=='Population',Age.group=='15 to 24 years'),REF_DATE,VALUE)
+names(age15dataca)[2] = "15-19.population"
+age25dataca =select(filter(oildataLR,GEO=='Canada',Sex =='Both sexes',Labour.force.characteristics
+=='Population',Age.group=='25 to 54 years'),REF_DATE,VALUE)
+names(age25dataca)[2] = "25-54.population"
+age55dataca =select(filter(oildataLR,GEO=='Canada',Sex =='Both sexes',Labour.force.characteristics
+=='Population',Age.group=='55 to 64 years'),REF_DATE,VALUE)
+names(age55dataca)[2] = "55-64.population"
+totalpopulation = select(filter(oildataLR,GEO=='Canada',Sex =='Both sexes',Labour.force.characteristics
+=='Population',Age.group=='15 years and over'),REF_DATE,VALUE)
+totalpopulation
+p15 = age15dataca$`15-19.population`/totalpopulation$VALUE
+p25 = age25dataca$`25-54.population`/totalpopulation$VALUE
+p55 = age55dataca$`55-64.population`/totalpopulation$VALUE
+
+age15dataca$p15=p15
+age25dataca$p25=p25
+age55dataca$p55=p55
+p15dataca = merge(age15dataca,totaldataLR,by="REF_DATE")
+p25dataca = merge(age25dataca,totaldataLR,by="REF_DATE")
+p55dataca = merge(age55dataca,totaldataLR,by="REF_DATE")
+ggplot(p15dataca, aes(x = p15, y = VALUE)) + geom_point(col="blue", size=2, position="jitter") + ylab("Unemployment rate (%)") + xlab("Gender Raio(F/M)") + ggtitle("Scatterplot of Unemployment rate (%) to Gender Raio(F/M)")+ stat_smooth(method="lm", col='red')
+ggplot(p25dataca, aes(x = p25, y = VALUE)) + geom_point(col="blue", size=2, position="jitter") + ylab("Unemployment rate (%)") + xlab("Gender Raio(F/M)") + ggtitle("Scatterplot of Unemployment rate (%) to Gender Raio(F/M)")+ stat_smooth(method="lm", col='red')
+ggplot(p55dataca, aes(x = p55, y = VALUE)) + geom_point(col="blue", size=2, position="jitter") + ylab("Unemployment rate (%)") + xlab("Gender Raio(F/M)") + ggtitle("Scatterplot of Unemployment rate (%) to Gender Raio(F/M)")+ stat_smooth(method="lm", col='red')
+```
+```{r}
+MRLDATA = cbind(p15dataca$p15,p25dataca$p25,p55dataca$p55,Ratiodata$Ratio,totaldataLR)
+MRLDATA
+model <- lm(MRLDATA$VALUE ~ p15dataca$p15 + Ratiodata$Ratio+MRLDATA$Price)
+summary(model)
+rsquared(model)
+```
+
